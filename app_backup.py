@@ -3,57 +3,37 @@ import pandas as pd
 import folium
 import requests
 import altair as alt
-from streamlit_folium import st_folium  # Library untuk menampilkan peta Folium di Streamlit
-from streamlit_js_eval import get_geolocation # Library untuk meminta akses GPS browser user
-from math import radians, cos, sin, asin, sqrt # Fungsi matematika untuk hitung jarak (Haversine)
+from streamlit_folium import st_folium
+from streamlit_js_eval import get_geolocation
+from math import radians, cos, sin, asin, sqrt
 
-# ==========================================
-# 1. KONFIGURASI HALAMAN
-# ==========================================
-# Mengatur judul tab browser, icon, dan layout wide (lebar)
+# --- KONFIGURASI HALAMAN ---
 st.set_page_config(
     page_title="Bandung WiFi Connect", 
-    page_icon="📶",
+    page_icon="📶", 
     layout="wide"
 )
 
-# ==========================================
-# 2. FUNGSI UTILITAS (MATEMATIKA)
-# ==========================================
+# --- FUNGSI UTILITAS (JARAK) ---
 def haversine(lat1, lon1, lat2, lon2):
-    """
-    Rumus Matematika 'Haversine' untuk menghitung jarak lurus (as the crow flies)
-    antara dua titik koordinat di permukaan bola bumi.
-    Output: Jarak dalam Kilometer.
-    """
-    R = 6371.0 # Radius bumi dalam KM
+    """Menghitung jarak (km) antar dua koordinat"""
+    R = 6371.0
     try:
-        # Konversi derajat ke radian
         dLat, dLon = radians(float(lat2) - float(lat1)), radians(float(lon2) - float(lon1))
-        # Rumus trigonometri haversine
         a = sin(dLat/2)**2 + cos(radians(float(lat1))) * cos(radians(float(lat2))) * sin(dLon/2)**2
         return 2 * asin(sqrt(a)) * R
     except:
-        return 999.0 # Return jarak jauh jika error (agar tidak masuk filter terdekat)
+        return 999.0
 
-# ==========================================
-# 3. FUNGSI SEARCH / GEOCODING
-# ==========================================
+# --- FUNGSI SEARCH / GEOCODING ---
 def geocode_place(query):
-    """
-    Mengubah nama tempat (misal: 'Gasibu') menjadi koordinat [lat, lon]
-    menggunakan API gratis Nominatim (OpenStreetMap).
-    """
-    # Menambahkan kata 'Bandung' agar pencarian lebih spesifik di area Bandung
+    """Mencari koordinat lokasi (Fly-to) menggunakan Nominatim"""
     url = f"https://nominatim.openstreetmap.org/search?q={query}+Bandung&format=json&limit=1"
-    
-    # Header wajib agar request tidak diblokir oleh server OSM
     headers = {'User-Agent': 'BdgWiFiApp/Final'}
     try:
         r = requests.get(url, headers=headers, timeout=5)
         data = r.json()
         if data:
-            # Ambil hasil pertama dan return lat/lon
             return [float(data[0]['lat']), float(data[0]['lon'])]
         return None
     except:
@@ -61,15 +41,11 @@ def geocode_place(query):
 
 # --- CALLBACK UNTUK SEARCH (FITUR CLEAR INPUT) ---
 def handle_search():
-    """
-    Callback dijalankan saat user menekan Enter di search bar.
-    Menggunakan st.session_state agar interaktif tanpa reload penuh.
-    """
+    """Callback dijalankan saat user menekan Enter di search bar"""
     query = st.session_state.search_input # Ambil value dari input
     if query:
         new_pos = geocode_place(query)
         if new_pos:
-            # Update posisi pusat peta & zoom level
             st.session_state.center = new_pos
             st.session_state.zoom = 16
             st.toast(f"✈️ Terbang ke {query}...", icon="✅")
@@ -79,14 +55,9 @@ def handle_search():
         # Kosongkan input setelah proses selesai
         st.session_state.search_input = ""
 
-# ==========================================
-# 4. LOAD DATA (LOCAL & SCRAPING)
-# ==========================================
-
-# Cache data selama 1 jam (3600 detik) agar aplikasi cepat
+# --- FUNGSI LOAD DATA (LOCAL & SCRAPING) ---
 @st.cache_data(ttl=3600)
 def load_local_data():
-    """Membaca data statis dari file Excel/CSV lokal"""
     try:
         df = pd.read_excel('data/bandung_wifi_map.xlsx')
     except:
@@ -95,7 +66,6 @@ def load_local_data():
         except:
             return pd.DataFrame(columns=['lokasi', 'latitude', 'longitude', 'sumber'])
     
-    # Data Cleaning
     df['latitude'] = pd.to_numeric(df['latitude'], errors='coerce')
     df['longitude'] = pd.to_numeric(df['longitude'], errors='coerce')
     df = df.dropna(subset=['latitude', 'longitude'])
@@ -105,10 +75,6 @@ def load_local_data():
 
 @st.cache_data(ttl=3600)
 def scrape_osm_data():
-    """
-    Melakukan SCRAPING data Live dari OpenStreetMap menggunakan Overpass API.
-    Mencari node dengan tag 'wifi' atau 'internet_access' di koordinat Bandung.
-    """
     overpass_url = "https://overpass-api.de/api/interpreter"
     overpass_query = """
     [out:json][timeout:25];
@@ -142,7 +108,6 @@ def scrape_osm_data():
         return pd.DataFrame(columns=['lokasi', 'latitude', 'longitude', 'sumber'])
 
 def get_combined_map_data():
-    """Menggabungkan data lokal dan scraping menjadi satu DataFrame"""
     df_local = load_local_data()
     df_osm = scrape_osm_data()
     return pd.concat([df_local, df_osm], ignore_index=True)
@@ -154,27 +119,22 @@ def load_stats_data():
     except:
         return pd.DataFrame()
 
-# ==========================================
-# 5. STATE MANAGEMENT (VARIABEL GLOBAL)
-# ==========================================
+# --- STATE MANAGEMENT ---
 if 'center' not in st.session_state:
     st.session_state.center = [-6.9175, 107.6191] # Default Bandung
 if 'zoom' not in st.session_state:
     st.session_state.zoom = 14
 if 'menu' not in st.session_state:
     st.session_state.menu = "peta"
-# Flag untuk mencegah auto-fly berulang kali setelah user panning peta
+# Flag baru untuk cek apakah sudah pernah auto-fly ke user
 if 'user_located_once' not in st.session_state:
     st.session_state.user_located_once = False
 
-# ==========================================
-# 6. SIDEBAR NAVIGASI
-# ==========================================
+# --- SIDEBAR NAV ---
 with st.sidebar:
     st.title("📶 WiFi Bandung")
     st.caption("Integrasi Dataset & OSM Scraping")
     
-    # Navigasi Menu
     if st.button("🛰️ Radar Peta", use_container_width=True, type="primary" if st.session_state.menu == "peta" else "secondary"):
         st.session_state.menu = "peta"
         st.rerun()
@@ -187,24 +147,22 @@ with st.sidebar:
         
     st.divider()
     
-    # Tombol Reset Cache & State
     if st.button("🔄 Reset & Refresh", use_container_width=True):
         st.cache_data.clear()
         st.session_state.center = [-6.9175, 107.6191]
         st.session_state.zoom = 14
+        # Reset flag agar auto-fly bekerja lagi setelah reset
         st.session_state.user_located_once = False 
         st.rerun()
 
-# ==========================================
-# 7. LOGIKA UTAMA (MAIN APP)
-# ==========================================
+# --- MAIN LOGIC ---
 
-# --- MENU 1: PETA RADAR ---
 if st.session_state.menu == "peta":
-    st.header("🛰️ Radar WiFi")
+    st.header("🛰️ Radar WiFi (Hybrid Data)")
     
-    # A. DETEKSI & AUTO-FLY KE LOKASI USER
-    user_loc = get_geolocation() # Meminta izin GPS browser
+    # 1. DETEKSI & AUTO-FLY KE LOKASI USER
+    # Mengambil lokasi user browser
+    user_loc = get_geolocation() 
     current_lat, current_lon = st.session_state.center
     has_user_loc = False
     
@@ -213,22 +171,26 @@ if st.session_state.menu == "peta":
         u_lon = user_loc['coords']['longitude']
         has_user_loc = True
         
-        # Logic: Hanya terbang otomatis jika belum pernah dilakukan (flag False)
+        # LOGIC AUTO-FLY:
+        # Jika lokasi terdeteksi DAN belum pernah dipusatkan (state False)
         if not st.session_state.user_located_once:
             st.session_state.center = [u_lat, u_lon]
             st.session_state.zoom = 16
-            st.session_state.user_located_once = True 
+            st.session_state.user_located_once = True # Tandai sudah dipusatkan
             st.toast("📍 Lokasi ditemukan! Memusatkan peta...", icon="🎯")
-            st.rerun()
+            st.rerun() # Refresh agar peta update posisi
+            
+        # Jika user sudah dipusatkan, variabel current ikut user (opsional, tergantung preferensi)
+        # Di sini kita biarkan current ikut session_state.center agar fitur search tetap jalan
     
-    # Update current lat/lon agar perhitungan jarak akurat sesuai tengah peta
+    # Update current lat/lon untuk perhitungan jarak
     current_lat, current_lon = st.session_state.center
 
-    # B. PENCARIAN TEMPAT
+    # 2. PENCARIAN (FLY-TO) DENGAN CLEAR INPUT
     with st.container(border=True):
         col_search, col_act = st.columns([3, 1])
         with col_search:
-            # Input text dengan callback 'on_change'
+            # Gunakan key='search_input' dan on_change=handle_search
             st.text_input(
                 "🔍 Cari Tempat (Terbang):", 
                 placeholder="Misal: Gedung Sate...", 
@@ -236,11 +198,11 @@ if st.session_state.menu == "peta":
                 on_change=handle_search
             )
     
-    # C. LOAD & FILTER DATA
+    # 3. LOAD DATA (GABUNGAN)
     df_map = get_combined_map_data()
     
     if not df_map.empty:
-        # Hitung Jarak semua titik dari pusat peta saat ini
+        # Hitung Jarak
         df_map['jarak'] = df_map.apply(
             lambda x: haversine(current_lat, current_lon, x['latitude'], x['longitude']), 
             axis=1
@@ -249,7 +211,7 @@ if st.session_state.menu == "peta":
         # Filter Radius 3 KM
         df_near = df_map[df_map['jarak'] <= 3.0].sort_values('jarak')
         
-        # D. RENDER PETA FOLIUM
+        # 4. RENDER MAP
         m = folium.Map(
             location=st.session_state.center, 
             zoom_start=st.session_state.zoom, 
@@ -263,7 +225,7 @@ if st.session_state.menu == "peta":
             icon=folium.Icon(color='red', icon='user', prefix='fa')
         ).add_to(m)
 
-        # Marker WiFi (Looping)
+        # Marker WiFi
         for _, row in df_near.iterrows():
             color = "#0078D7" if row['sumber'] == 'Dataset Internal' else "#FF9800"
             gmap_link = f"https://www.google.com/maps/search/?api=1&query={row['latitude']},{row['longitude']}"
@@ -291,12 +253,11 @@ if st.session_state.menu == "peta":
                 popup=folium.Popup(popup_html, max_width=250)
             ).add_to(m)
 
-        # Layout Kolom Tampilan
         c_map, c_list = st.columns([3, 1])
         with c_map:
             st_folium(m, width="100%", height=500, key="map_render")
             
-            # Status Bar Kecil
+            # Status Bar Kecil di Bawah Peta
             status_text = "📍 Menggunakan Lokasi GPS Anda" if has_user_loc and st.session_state.user_located_once else "📍 Menggunakan Pusat Kota Default"
             st.caption(f"{status_text} | 🔵 Internal | 🟠 OSM Live")
             
@@ -311,7 +272,6 @@ if st.session_state.menu == "peta":
             else:
                 st.info("Tidak ada titik WiFi dalam radius 3 KM.")
 
-# --- MENU 2: STATISTIK ---
 elif st.session_state.menu == "stats":
     st.header("📊 Analitik Pengguna (Raw Data)")
     df_raw = load_stats_data()
@@ -333,7 +293,6 @@ elif st.session_state.menu == "stats":
         m2.metric("Top Lokasi", agg_data.iloc[0]['lokasi'] if not agg_data.empty else "-")
         
         st.write("---")
-        # Visualisasi dengan Altair Charts
         chart = alt.Chart(agg_data.head(15)).mark_bar(cornerRadiusTopRight=5).encode(
             x=alt.X(f'{y_val}:Q', title=x_title),
             y=alt.Y('lokasi:N', sort='-x', title="Lokasi"),
@@ -344,7 +303,6 @@ elif st.session_state.menu == "stats":
     else:
         st.error("File 'bandung_wifi_raw.csv' tidak ditemukan.")
 
-# --- MENU 3: DATASET ---
 elif st.session_state.menu == "data":
     st.header("🗄️ Master Database")
     
@@ -368,3 +326,4 @@ elif st.session_state.menu == "data":
             st.download_button("📥 Unduh CSV (Scraping Result)", csv_osm, "scraped_osm_wifi.csv", "text/csv")
         else:
             st.warning("Tidak ada data scraping yang ditemukan atau API timeout.")
+            

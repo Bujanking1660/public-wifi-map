@@ -29,5 +29,5 @@ def proses_data():
 
     print(f"Selesai! Data Raw: {len(df_bersih)} | Data Map: {len(df_map)}")
 
-if __name__ == "__main__":
-    proses_data()
+
+proses_data()
