@@ -1,9 +1,7 @@
-streamlit
 pandas
 folium
 requests
 altair
 streamlit-folium
 streamlit-js-eval
-math
-os
+openpyxl
