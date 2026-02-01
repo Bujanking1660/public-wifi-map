@@ -6,4 +6,3 @@ altair==4.2.2
 streamlit-folium
 streamlit-js-eval
 openpyxl
-os
