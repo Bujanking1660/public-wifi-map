@@ -278,7 +278,9 @@ elif st.session_state.menu == "stats":
     
     if not df_raw.empty:
         if 'jumlah_pengguna' in df_raw.columns:
-            agg_data = df_raw.groupby('lokasi')['jumlah_pengguna'].sum().reset_index()
+            # agg_data = df_raw.groupby('lokasi')['jumlah_pengguna'].sum().reset_index()
+            agg_data = df_raw.groupby('lokasi')['jumlah_pengguna'].mean().reset_index()
+            agg_data['jumlah_pengguna'] = agg_data['jumlah_pengguna'].round(1).astype(int)
             agg_data = agg_data.sort_values('jumlah_pengguna', ascending=False)
             y_val = 'jumlah_pengguna'
             x_title = "Total Pengguna"
