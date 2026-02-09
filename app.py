@@ -283,7 +283,7 @@ elif st.session_state.menu == "stats":
             agg_data['jumlah_pengguna'] = agg_data['jumlah_pengguna'].round(1).astype(int)
             agg_data = agg_data.sort_values('jumlah_pengguna', ascending=False)
             y_val = 'jumlah_pengguna'
-            x_title = "Total Pengguna"
+            x_title = "Rata-rata Pengguna"
         else:
             agg_data = df_raw['lokasi'].value_counts().reset_index()
             agg_data.columns = ['lokasi', 'count']
