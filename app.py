@@ -198,7 +198,7 @@ if st.session_state.menu == "peta":
         col_search, col_act = st.columns([3, 1])
         with col_search:
             st.text_input(
-                "🔍 Cari Tempat (Terbang):", 
+                "🔍 Cari Tempat :", 
                 placeholder="Misal: Gedung Sate...", 
                 key="search_input", 
                 on_change=handle_search
@@ -309,7 +309,7 @@ elif st.session_state.menu == "stats":
 elif st.session_state.menu == "data":
     st.header("🗄️ Master Database")
     
-    tab1, tab2 = st.tabs(["📁 Dataset Internal (Excel)", "🌐 Data Scrapping (OSM Live)"])
+    tab1, tab2 = st.tabs(["📁 Dataset Internal", "🌐 Data Scrapping (OSM Live)"])
     
     with tab1:
         st.info("Data statis dari file `bandung_wifi_map.xlsx`.")
